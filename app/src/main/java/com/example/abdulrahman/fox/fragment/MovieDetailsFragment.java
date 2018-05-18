@@ -9,6 +9,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.telecom.Call;
@@ -20,10 +21,13 @@ import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
 import com.example.abdulrahman.fox.R;
+import com.example.abdulrahman.fox.activities.ReviewsActivity;
+import com.example.abdulrahman.fox.adapter.ReviewListAdapter;
 import com.example.abdulrahman.fox.adapter.TrailerListAdapter;
 import com.example.abdulrahman.fox.api.MoviesApi;
 import com.example.abdulrahman.fox.api.MoviesService;
 import com.example.abdulrahman.fox.model.Movie;
+import com.example.abdulrahman.fox.model.ReviewsResults;
 import com.example.abdulrahman.fox.model.Trailer;
 import com.example.abdulrahman.fox.model.TrailersResults;
 import com.example.abdulrahman.fox.utils.Constants;
@@ -39,7 +43,8 @@ import retrofit2.Response;
 /**
  * A simple {@link Fragment} subclass.
  */
-public class MovieDetailsFragment extends Fragment implements TrailerListAdapter.ITrailerListListener {
+public class MovieDetailsFragment extends Fragment implements
+        TrailerListAdapter.ITrailerListListener ,ReviewListAdapter.IReviewListListener{
 
     @BindView(R.id.iv_backdrop)
     ImageView ivBorddrop;
@@ -69,6 +74,7 @@ public class MovieDetailsFragment extends Fragment implements TrailerListAdapter
 
 
     private TrailerListAdapter mTrailerAdapter;
+    private ReviewListAdapter mReviewAdapter;
 
     private StringBuilder mParamsForApi;
 
@@ -100,6 +106,12 @@ public class MovieDetailsFragment extends Fragment implements TrailerListAdapter
 
         setViewMovie();
         setTrailerLayoutManager();
+        setReviewLayoutManger();
+
+        if (!mTwoPane)
+        {
+            setToolBar(mMovie.getTitle(),true,true);
+        }
 
 
         return view;
@@ -155,9 +167,11 @@ public class MovieDetailsFragment extends Fragment implements TrailerListAdapter
         Glide.with(mContext).load(Constants.API_BACKDROP_HEADER+mMovie.getBackdrop()).into(ivBorddrop);
 
 
-        if (mMovie.getTrailersResults() !=null)
+        if (mMovie.getTrailersResults() !=null &&mMovie.getReviewsResults() !=null &&mMovie.getRuntime() !=null )
         {
             setTrailerRecyclerAdapter(rvTrailerList);
+            tvReviewCount.setText(String.valueOf("("+mMovie.getReviewsResults().getTotalReviews())+")");
+            setReviewRecyclerAdapter(rvReviewList);
             tvRunTime.setText(Utils.timeToDisplay(mMovie.getRuntime()));
 
         }
@@ -177,6 +191,26 @@ public class MovieDetailsFragment extends Fragment implements TrailerListAdapter
         mTrailerAdapter =new TrailerListAdapter(mContext,mMovie,this);
         recyclerView.setAdapter(mTrailerAdapter);
     }
+
+    private void setReviewLayoutManger()
+    {
+        LinearLayoutManager linearLayoutManager=new LinearLayoutManager(mContext,LinearLayoutManager.HORIZONTAL,false);
+        rvReviewList.setLayoutManager(linearLayoutManager);
+        rvReviewList.setHasFixedSize(true);
+    }
+
+    private void setReviewRecyclerAdapter(RecyclerView recyclerView)
+    {
+        mReviewAdapter=new ReviewListAdapter(mContext,mMovie,this);
+        recyclerView.setAdapter(mReviewAdapter);
+    }
+
+    private  void setToolBar(String title, boolean homeUp, boolean showHomeUp)
+    {
+        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(title);
+        ((AppCompatActivity) getActivity()).getSupportActionBar().setDisplayHomeAsUpEnabled(homeUp);
+        ((AppCompatActivity) getActivity()).getSupportActionBar().setDisplayShowHomeEnabled(showHomeUp);
+    }
     private void httpGetMovieDetails(long movieId) {
 
         mParamsForApi = new StringBuilder();
@@ -192,9 +226,22 @@ public class MovieDetailsFragment extends Fragment implements TrailerListAdapter
             @Override
             public void onResponse(retrofit2.Call<Movie> call, Response<Movie> response) {
                 mMovie=response.body();
+
+
+                // set trailers
                 TrailersResults trailersResults= mMovie.getTrailersResults();
                 mMovie.setTrailersResults(trailersResults);
                 setTrailerRecyclerAdapter(rvTrailerList);
+
+                //set reviews
+                ReviewsResults reviewsResults=mMovie.getReviewsResults();
+                mMovie.setReviewsResults(reviewsResults);
+                tvReviewCount.setText(String.valueOf("("+mMovie.getReviewsResults().getTotalReviews())+")");
+                setReviewRecyclerAdapter(rvReviewList);
+
+                //set runTime
+                tvRunTime.setText(Utils.timeToDisplay(mMovie.getRuntime()));
+
 
             }
 
@@ -213,5 +260,13 @@ public class MovieDetailsFragment extends Fragment implements TrailerListAdapter
         Utils.showLongToastMessage(getActivity(),Constants.TOAST_WATCHING_TRAILER_+mTrailer.getName());
         Intent playYoutubeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(Constants.YOUTUBE_URL+mTrailer.getKey()));
         startActivity(playYoutubeIntent);
+    }
+
+    @Override
+    public void onReviewListClick(int clickReviewIndex) {
+        Intent reviewsIntent = new Intent(getActivity(), ReviewsActivity.class);
+        reviewsIntent.putExtra(Constants.EXTRA_PARCELABLE_MOVIE, Parcels.wrap(mMovie));
+        startActivity(reviewsIntent);
+        getActivity().overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out );
     }
 }
